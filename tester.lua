@@ -179,7 +179,7 @@ function Window.new(title, size, position)
 		Parent = closeBtn,
 	})
 	
-	closeBtn.MouseButton1Click:Connect(function()
+	closeBtn.MouseButton1:Connect(function()
 		self.ScreenGui:Destroy()
 	end)
 	
@@ -289,7 +289,7 @@ function Window:AddTab(name)
 	self.TabScroll.CanvasSize = UDim2.new(0, 0, 0, self.TabScroll.UIListLayout.AbsoluteContentSize.Y + 10)
 	
 	-- Tab switching
-	tab.Button.MouseButton1Click:Connect(function()
+	tab.Button.MouseButton1:Connect(function()
 		if self.CurrentTab then
 			self.CurrentTab.Frame.Visible = false
 			Tween(self.CurrentTab.Button, "BackgroundColor3", COLORS.Secondary, 0.2)
@@ -359,7 +359,7 @@ function Window:AddButton(text, callback, tab)
 		Tween(button, "BackgroundColor3", COLORS.Primary, 0.1)
 	end)
 	
-	button.MouseButton1Click:Connect(function()
+	button.MouseButton1:Connect(function()
 		if callback then
 			callback()
 		end
@@ -440,7 +440,7 @@ function Window:AddToggle(text, default, callback, tab)
 		end
 	end
 	
-	clickDetector.MouseButton1Click:Connect(function()
+	clickDetector.MouseButton1:Connect(function()
 		toggle:Set(not toggle.Value)
 	end)
 	
@@ -556,7 +556,7 @@ function Window:AddSlider(text, min, max, default, callback, tab)
 		end
 	end
 	
-	clickDetector.MouseButton1Click:Connect(UpdateSlider)
+	clickDetector.MouseButton1:Connect(UpdateSlider)
 	
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -710,7 +710,7 @@ function Window:AddDropdown(text, options, default, callback, tab)
 			Tween(optionBtn, "BackgroundColor3", COLORS.Secondary, 0.1)
 		end)
 		
-		optionBtn.MouseButton1Click:Connect(function()
+		optionBtn.MouseButton1:Connect(function()
 			dropdown.Value = option
 			dropdownBtn.Text = option
 			CloseDropdown()
@@ -720,7 +720,7 @@ function Window:AddDropdown(text, options, default, callback, tab)
 		end)
 	end
 	
-	dropdownBtn.MouseButton1Click:Connect(function()
+	dropdownBtn.MouseButton1:Connect(function()
 		if dropdown.Open then
 			CloseDropdown()
 		else
