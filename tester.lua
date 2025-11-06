@@ -688,8 +688,61 @@ function Window:AddDivider(tab)
 end
 
 -- Library export
-return {
+local Library = {
 	Window = Window,
 	Colors = COLORS,
 	CreateInstance = CreateInstance,
 }
+
+-- Add direct component creation functions that work on the last created window
+function Library.Button(text, callback, tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddButton(text, callback, tab)
+end
+
+function Library.Toggle(text, default, callback, tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddToggle(text, default, callback, tab)
+end
+
+function Library.Slider(text, min, max, default, callback, tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddSlider(text, min, max, default, callback, tab)
+end
+
+function Library.TextBox(placeholder, callback, tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddTextBox(placeholder, callback, tab)
+end
+
+function Library.Dropdown(text, options, default, callback, tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddDropdown(text, options, default, callback, tab)
+end
+
+function Library.Label(text, tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddLabel(text, tab)
+end
+
+function Library.Divider(tab, window)
+	local targetWindow = window or Library._currentWindow
+	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
+	return targetWindow:AddDivider(tab)
+end
+
+-- Wrap the Window.new to track the current window
+local OriginalWindowNew = Window.new
+function Window.new(title, size, position)
+	local window = OriginalWindowNew(title, size, position)
+	Library._currentWindow = window
+	return window
+end
+
+return Library
