@@ -1,21 +1,26 @@
 --[[
-	NeonUI - Complete Roblox UI Library
+	NeonUI - Complete Roblox UI Library (FIXED)
 	Modern dark-themed UI library with neon purple accents
-	Usage: local Library = loadstring(game:HttpGetAsync("RAW_GITHUB_URL"))()
+	Compatible with all executors
 ]]
 
 local NeonUI = {}
 NeonUI.__index = NeonUI
 
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
 -- Color Scheme
 local COLORS = {
-	Primary = Color3.fromRGB(88, 0, 255),      -- Neon Purple
-	Secondary = Color3.fromRGB(50, 50, 50),   -- Dark Gray
-	Tertiary = Color3.fromRGB(25, 25, 25),    -- Almost Black
-	Background = Color3.fromRGB(15, 15, 15),  -- Very Dark
-	Text = Color3.fromRGB(240, 240, 240),     -- Light Gray
-	TextSecondary = Color3.fromRGB(150, 150, 150), -- Medium Gray
-	Accent = Color3.fromRGB(0, 255, 200),     -- Cyan
+	Primary = Color3.fromRGB(88, 0, 255),
+	Secondary = Color3.fromRGB(50, 50, 50),
+	Tertiary = Color3.fromRGB(25, 25, 25),
+	Background = Color3.fromRGB(15, 15, 15),
+	Text = Color3.fromRGB(240, 240, 240),
+	TextSecondary = Color3.fromRGB(150, 150, 150),
+	Accent = Color3.fromRGB(0, 255, 200),
 	Red = Color3.fromRGB(255, 85, 85),
 	Green = Color3.fromRGB(85, 255, 85),
 }
@@ -24,61 +29,61 @@ local COLORS = {
 local function CreateInstance(className, properties)
 	local instance = Instance.new(className)
 	for prop, value in pairs(properties or {}) do
-		instance[prop] = value
+		if prop ~= "Parent" then
+			instance[prop] = value
+		end
+	end
+	if properties.Parent then
+		instance.Parent = properties.Parent
 	end
 	return instance
 end
 
-local function MakeDraggable(frame)
+local function MakeDraggable(frame, dragHandle)
 	local dragging = false
 	local dragStart = nil
 	local frameStart = nil
 
-	frame.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed then return end
+	dragHandle = dragHandle or frame
+
+	dragHandle.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
 			dragStart = input.Position
 			frameStart = frame.Position
+			
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
 		end
 	end)
 
-	game:GetService("UserInputService").InputChanged:Connect(function(input, gameProcessed)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local delta = input.Position - dragStart
-			frame.Position = frameStart + UDim2.new(0, delta.X, 0, delta.Y)
+			frame.Position = UDim2.new(
+				frameStart.X.Scale,
+				frameStart.X.Offset + delta.X,
+				frameStart.Y.Scale,
+				frameStart.Y.Offset + delta.Y
+			)
 		end
 	end)
 
-	game:GetService("UserInputService").InputEnded:Connect(function(input)
+	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = false
 		end
 	end)
 end
 
-local function AnimatePropertyChange(instance, property, targetValue, duration)
-	local startValue = instance[property]
-	local startTime = tick()
-	
-	if typeof(targetValue) == "Color3" then
-		local startColor = startValue
-		while tick() - startTime < duration do
-			local progress = math.min((tick() - startTime) / duration, 1)
-			instance[property] = startColor:Lerp(targetValue, progress)
-			task.wait(0.016)
-		end
-		instance[property] = targetValue
-	elseif typeof(targetValue) == "number" then
-		local startNum = startValue
-		while tick() - startTime < duration do
-			local progress = math.min((tick() - startTime) / duration, 1)
-			instance[property] = startNum + (targetValue - startNum) * progress
-			task.wait(0.016)
-		end
-		instance[property] = targetValue
-	end
+local function Tween(instance, property, targetValue, duration)
+	local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tween = TweenService:Create(instance, tweenInfo, {[property] = targetValue})
+	tween:Play()
+	return tween
 end
 
 -- Window Component
@@ -96,6 +101,22 @@ function Window.new(title, size, position)
 	self.Tabs = {}
 	self.CurrentTab = nil
 	
+	-- Create ScreenGui
+	self.ScreenGui = CreateInstance("ScreenGui", {
+		Name = "NeonUI_" .. tick(),
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	})
+	
+	-- Try to parent to CoreGui, fallback to PlayerGui
+	local success = pcall(function()
+		self.ScreenGui.Parent = game:GetService("CoreGui")
+	end)
+	
+	if not success then
+		self.ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+	end
+	
 	-- Main Frame
 	self.Frame = CreateInstance("Frame", {
 		Name = "NeonUIWindow",
@@ -103,10 +124,9 @@ function Window.new(title, size, position)
 		Position = self.Position,
 		BackgroundColor3 = COLORS.Tertiary,
 		BorderSizePixel = 0,
-		Parent = game:GetService("CoreGui"),
+		Parent = self.ScreenGui,
 	})
 	
-	-- Add corner radius
 	CreateInstance("UICorner", {
 		CornerRadius = UDim.new(0, 8),
 		Parent = self.Frame,
@@ -160,13 +180,13 @@ function Window.new(title, size, position)
 	})
 	
 	closeBtn.MouseButton1Click:Connect(function()
-		self.Frame:Destroy()
+		self.ScreenGui:Destroy()
 	end)
 	
 	-- Make draggable
-	MakeDraggable(self.Header)
+	MakeDraggable(self.Frame, self.Header)
 	
-	-- Content Area with TabBar
+	-- TabBar
 	self.TabBar = CreateInstance("Frame", {
 		Name = "TabBar",
 		Size = UDim2.new(0, 150, 1, -40),
@@ -176,7 +196,29 @@ function Window.new(title, size, position)
 		Parent = self.Frame,
 	})
 	
-	-- Content Container
+	-- TabBar ScrollFrame
+	self.TabScroll = CreateInstance("ScrollingFrame", {
+		Name = "TabScroll",
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 4,
+		ScrollBarImageColor3 = COLORS.Primary,
+		BorderSizePixel = 0,
+		Parent = self.TabBar,
+	})
+	
+	CreateInstance("UIListLayout", {
+		Padding = UDim.new(0, 5),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Parent = self.TabScroll,
+	})
+	
+	CreateInstance("UIPadding", {
+		PaddingTop = UDim.new(0, 5),
+		Parent = self.TabScroll,
+	})
+	
+	-- Content Area
 	self.ContentArea = CreateInstance("Frame", {
 		Name = "Content",
 		Size = UDim2.new(1, -150, 1, -40),
@@ -186,26 +228,6 @@ function Window.new(title, size, position)
 		Parent = self.Frame,
 	})
 	
-	-- Scrolling frame for content
-	self.ContentScroll = CreateInstance("ScrollingFrame", {
-		Name = "ContentScroll",
-		Size = UDim2.new(1, 0, 1, 0),
-		BackgroundTransparency = 1,
-		ScrollBarThickness = 8,
-		ScrollBarImageColor3 = COLORS.Primary,
-		BorderSizePixel = 0,
-		Parent = self.ContentArea,
-	})
-	
-	CreateInstance("UIListLayout", {
-		Padding = UDim.new(0, 10),
-		HorizontalAlignment = Enum.HorizontalAlignment.Left,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
-		Parent = self.ContentScroll,
-	})
-	
-	self.ContentScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-	
 	return self
 end
 
@@ -213,61 +235,75 @@ function Window:AddTab(name)
 	local tab = {
 		Name = name,
 		Elements = {},
+		Button = nil,
 		Frame = nil,
 	}
 	
-	-- Tab button on sidebar
-	local tabBtn = CreateInstance("TextButton", {
+	-- Tab button
+	tab.Button = CreateInstance("TextButton", {
 		Name = name .. "Tab",
 		Size = UDim2.new(1, -10, 0, 35),
-		Position = UDim2.new(0, 5, 0, 5 + (#self.Tabs * 40)),
-		BackgroundColor3 = self.CurrentTab == tab and COLORS.Primary or COLORS.Secondary,
+		BackgroundColor3 = COLORS.Secondary,
 		TextColor3 = COLORS.Text,
 		Text = name,
 		TextSize = 12,
 		Font = Enum.Font.Gotham,
 		BorderSizePixel = 0,
-		Parent = self.TabBar,
+		Parent = self.TabScroll,
 	})
 	
 	CreateInstance("UICorner", {
 		CornerRadius = UDim.new(0, 4),
-		Parent = tabBtn,
+		Parent = tab.Button,
 	})
 	
-	-- Content frame for this tab
-	tab.Frame = CreateInstance("Frame", {
+	-- Content frame
+	tab.Frame = CreateInstance("ScrollingFrame", {
 		Name = name .. "Content",
-		Size = UDim2.new(1, 0, 1, 0),
+		Size = UDim2.new(1, -20, 1, -20),
+		Position = UDim2.new(0, 10, 0, 10),
 		BackgroundTransparency = 1,
-		Visible = #self.Tabs == 0,
-		Parent = self.ContentScroll,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = COLORS.Primary,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = self.ContentArea,
 	})
 	
 	CreateInstance("UIListLayout", {
 		Padding = UDim.new(0, 8),
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
 		Parent = tab.Frame,
 	})
 	
-	tabBtn.MouseButton1Click:Connect(function()
+	CreateInstance("UIPadding", {
+		PaddingTop = UDim.new(0, 5),
+		Parent = tab.Frame,
+	})
+	
+	-- Auto-resize canvas
+	tab.Frame:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(function()
+		tab.Frame.CanvasSize = UDim2.new(0, 0, 0, tab.Frame.UIListLayout.AbsoluteContentSize.Y + 10)
+	end)
+	
+	self.TabScroll.CanvasSize = UDim2.new(0, 0, 0, self.TabScroll.UIListLayout.AbsoluteContentSize.Y + 10)
+	
+	-- Tab switching
+	tab.Button.MouseButton1Click:Connect(function()
 		if self.CurrentTab then
 			self.CurrentTab.Frame.Visible = false
+			Tween(self.CurrentTab.Button, "BackgroundColor3", COLORS.Secondary, 0.2)
 		end
 		self.CurrentTab = tab
 		tab.Frame.Visible = true
-		
-		-- Update button color
-		for _, btn in pairs(self.TabBar:GetChildren()) do
-			if btn:IsA("TextButton") then
-				AnimatePropertyChange(btn, "BackgroundColor3", btn == tabBtn and COLORS.Primary or COLORS.Secondary, 0.2)
-			end
-		end
+		Tween(tab.Button, "BackgroundColor3", COLORS.Primary, 0.2)
 	end)
 	
+	-- Select first tab by default
 	if #self.Tabs == 0 then
 		self.CurrentTab = tab
+		tab.Frame.Visible = true
+		tab.Button.BackgroundColor3 = COLORS.Primary
 	end
 	
 	table.insert(self.Tabs, tab)
@@ -287,6 +323,7 @@ function Window:AddLabel(text, tab)
 		TextSize = 13,
 		Font = Enum.Font.Gotham,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextWrapped = true,
 		Parent = tab.Frame,
 	})
 	
@@ -315,14 +352,18 @@ function Window:AddButton(text, callback, tab)
 	})
 	
 	button.MouseEnter:Connect(function()
-		AnimatePropertyChange(button, "BackgroundColor3", COLORS.Primary:Lerp(Color3.new(1,1,1), 0.2), 0.1)
+		Tween(button, "BackgroundColor3", Color3.fromRGB(120, 30, 255), 0.1)
 	end)
 	
 	button.MouseLeave:Connect(function()
-		AnimatePropertyChange(button, "BackgroundColor3", COLORS.Primary, 0.1)
+		Tween(button, "BackgroundColor3", COLORS.Primary, 0.1)
 	end)
 	
-	button.MouseButton1Click:Connect(callback or function() end)
+	button.MouseButton1Click:Connect(function()
+		if callback then
+			callback()
+		end
+	end)
 	
 	return button
 end
@@ -330,6 +371,10 @@ end
 function Window:AddToggle(text, default, callback, tab)
 	tab = tab or self.CurrentTab
 	if not tab then return end
+	
+	local toggle = {
+		Value = default or false,
+	}
 	
 	local container = CreateInstance("Frame", {
 		Name = "ToggleContainer",
@@ -351,12 +396,6 @@ function Window:AddToggle(text, default, callback, tab)
 		Parent = container,
 	})
 	
-	local toggle = {
-		Value = default or false,
-		Enabled = true,
-	}
-	
-	-- Toggle Switch
 	local switchContainer = CreateInstance("Frame", {
 		Name = "Switch",
 		Size = UDim2.new(0, 50, 0, 26),
@@ -371,13 +410,12 @@ function Window:AddToggle(text, default, callback, tab)
 		Parent = switchContainer,
 	})
 	
-	local switchButton = CreateInstance("TextButton", {
+	local switchButton = CreateInstance("Frame", {
 		Name = "SwitchButton",
 		Size = UDim2.new(0, 22, 0, 22),
 		Position = UDim2.new(0, toggle.Value and 24 or 2, 0.5, -11),
 		BackgroundColor3 = COLORS.Text,
 		BorderSizePixel = 0,
-		Text = "",
 		Parent = switchContainer,
 	})
 	
@@ -386,14 +424,23 @@ function Window:AddToggle(text, default, callback, tab)
 		Parent = switchButton,
 	})
 	
+	local clickDetector = CreateInstance("TextButton", {
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		Parent = switchContainer,
+	})
+	
 	function toggle:Set(value)
 		self.Value = value
-		AnimatePropertyChange(switchContainer, "BackgroundColor3", value and COLORS.Primary or COLORS.Secondary, 0.15)
-		AnimatePropertyChange(switchButton, "Position", UDim2.new(0, value and 24 or 2, 0.5, -11), 0.15)
-		callback(value)
+		Tween(switchContainer, "BackgroundColor3", value and COLORS.Primary or COLORS.Secondary, 0.15)
+		Tween(switchButton, "Position", UDim2.new(0, value and 24 or 2, 0.5, -11), 0.15)
+		if callback then
+			callback(value)
+		end
 	end
 	
-	switchContainer.MouseButton1Click:Connect(function()
+	clickDetector.MouseButton1Click:Connect(function()
 		toggle:Set(not toggle.Value)
 	end)
 	
@@ -403,6 +450,12 @@ end
 function Window:AddSlider(text, min, max, default, callback, tab)
 	tab = tab or self.CurrentTab
 	if not tab then return end
+	
+	local slider = {
+		Value = default or min,
+		Min = min,
+		Max = max,
+	}
 	
 	local container = CreateInstance("Frame", {
 		Name = "SliderContainer",
@@ -423,13 +476,6 @@ function Window:AddSlider(text, min, max, default, callback, tab)
 		Parent = container,
 	})
 	
-	local slider = {
-		Value = default or min,
-		Min = min,
-		Max = max,
-	}
-	
-	-- Slider background
 	local sliderBg = CreateInstance("Frame", {
 		Name = "SliderBG",
 		Size = UDim2.new(1, 0, 0, 6),
@@ -444,7 +490,6 @@ function Window:AddSlider(text, min, max, default, callback, tab)
 		Parent = sliderBg,
 	})
 	
-	-- Slider fill
 	local sliderFill = CreateInstance("Frame", {
 		Name = "SliderFill",
 		Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
@@ -458,11 +503,10 @@ function Window:AddSlider(text, min, max, default, callback, tab)
 		Parent = sliderFill,
 	})
 	
-	-- Slider knob
 	local knob = CreateInstance("Frame", {
 		Name = "Knob",
 		Size = UDim2.new(0, 14, 0, 20),
-		Position = UDim2.new((default - min) / (max - min), -7, 0, -7),
+		Position = UDim2.new((default - min) / (max - min), -7, 0.5, -10),
 		BackgroundColor3 = COLORS.Primary,
 		BorderSizePixel = 0,
 		Parent = sliderBg,
@@ -473,36 +517,51 @@ function Window:AddSlider(text, min, max, default, callback, tab)
 		Parent = knob,
 	})
 	
+	local clickDetector = CreateInstance("TextButton", {
+		Size = UDim2.new(1, 0, 1, 20),
+		Position = UDim2.new(0, 0, 0, -10),
+		BackgroundTransparency = 1,
+		Text = "",
+		Parent = sliderBg,
+	})
+	
 	local dragging = false
-	knob.InputBegan:Connect(function(input, gameProcessed)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-		end
+	
+	clickDetector.MouseButton1Down:Connect(function()
+		dragging = true
 	end)
 	
-	game:GetService("UserInputService").InputEnded:Connect(function(input)
+	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = false
 		end
 	end)
 	
-	game:GetService("UserInputService").InputChanged:Connect(function(input, gameProcessed)
-		if not dragging or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-		
+	local function UpdateSlider(input)
 		local mousePos = input.Position.X
 		local sliderPos = sliderBg.AbsolutePosition.X
 		local sliderSize = sliderBg.AbsoluteSize.X
-		local relativePos = math.max(0, math.min(mousePos - sliderPos, sliderSize))
+		local relativePos = math.clamp(mousePos - sliderPos, 0, sliderSize)
 		local percentage = relativePos / sliderSize
 		
 		local newValue = math.floor(min + (max - min) * percentage)
 		slider.Value = newValue
 		
 		sliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-		knob.Position = UDim2.new(percentage, -7, 0, -7)
+		knob.Position = UDim2.new(percentage, -7, 0.5, -10)
 		label.Text = text .. ": " .. newValue
 		
-		callback(newValue)
+		if callback then
+			callback(newValue)
+		end
+	end
+	
+	clickDetector.MouseButton1Click:Connect(UpdateSlider)
+	
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			UpdateSlider(input)
+		end
 	end)
 	
 	return slider
@@ -523,8 +582,8 @@ function Window:AddTextBox(placeholder, callback, tab)
 		Font = Enum.Font.Gotham,
 		Text = "",
 		BorderSizePixel = 0,
-		Parent = tab.Frame,
 		ClearTextOnFocus = false,
+		Parent = tab.Frame,
 	})
 	
 	CreateInstance("UICorner", {
@@ -538,7 +597,7 @@ function Window:AddTextBox(placeholder, callback, tab)
 		Parent = textbox,
 	})
 	
-	textbox.FocusLost:Connect(function()
+	textbox.FocusLost:Connect(function(enterPressed)
 		if callback then
 			callback(textbox.Text)
 		end
@@ -551,24 +610,24 @@ function Window:AddDropdown(text, options, default, callback, tab)
 	tab = tab or self.CurrentTab
 	if not tab then return end
 	
+	local dropdown = {
+		Value = default or options[1],
+		Open = false,
+		Options = options,
+	}
+	
 	local container = CreateInstance("Frame", {
 		Name = "DropdownContainer",
 		Size = UDim2.new(1, -20, 0, 32),
 		BackgroundTransparency = 1,
+		ClipsDescendants = false,
 		Parent = tab.Frame,
-	})
-	
-	CreateInstance("UIListLayout", {
-		Padding = UDim.new(0, 8),
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.SpaceBetween,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Parent = container,
 	})
 	
 	local label = CreateInstance("TextLabel", {
 		Name = "Label",
-		Size = UDim2.new(0, 80, 1, 0),
+		Size = UDim2.new(0, 100, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
 		BackgroundTransparency = 1,
 		Text = text,
 		TextColor3 = COLORS.Text,
@@ -578,14 +637,10 @@ function Window:AddDropdown(text, options, default, callback, tab)
 		Parent = container,
 	})
 	
-	local dropdown = {
-		Value = default or options[1],
-		Open = false,
-	}
-	
 	local dropdownBtn = CreateInstance("TextButton", {
 		Name = "DropdownButton",
-		Size = UDim2.new(1, -90, 1, 0),
+		Size = UDim2.new(1, -110, 1, 0),
+		Position = UDim2.new(0, 110, 0, 0),
 		BackgroundColor3 = COLORS.Secondary,
 		TextColor3 = COLORS.Text,
 		Text = dropdown.Value,
@@ -602,14 +657,14 @@ function Window:AddDropdown(text, options, default, callback, tab)
 	
 	local dropdownList = CreateInstance("Frame", {
 		Name = "DropdownList",
-		Size = UDim2.new(1, -90, 0, 0),
-		Position = UDim2.new(0, 80, 1, 0),
+		Size = UDim2.new(1, -110, 0, 0),
+		Position = UDim2.new(0, 110, 1, 5),
 		BackgroundColor3 = COLORS.Secondary,
 		BorderSizePixel = 0,
 		Visible = false,
-		Parent = container,
 		ClipsDescendants = true,
-		ZIndex = 2,
+		ZIndex = 10,
+		Parent = container,
 	})
 	
 	CreateInstance("UICorner", {
@@ -621,20 +676,20 @@ function Window:AddDropdown(text, options, default, callback, tab)
 		Parent = dropdownList,
 	})
 	
-	local function ShowDropdown()
-		dropdown.Open = true
-		dropdownList.Visible = true
-		AnimatePropertyChange(dropdownList, "Size", UDim2.new(1, -90, 0, #options * 32), 0.15)
-	end
-	
-	local function HideDropdown()
+	local function CloseDropdown()
 		dropdown.Open = false
-		AnimatePropertyChange(dropdownList, "Size", UDim2.new(1, -90, 0, 0), 0.15)
+		Tween(dropdownList, "Size", UDim2.new(1, -110, 0, 0), 0.15)
 		task.wait(0.15)
 		dropdownList.Visible = false
 	end
 	
-	for _, option in pairs(options) do
+	local function OpenDropdown()
+		dropdown.Open = true
+		dropdownList.Visible = true
+		Tween(dropdownList, "Size", UDim2.new(1, -110, 0, #options * 32), 0.15)
+	end
+	
+	for _, option in ipairs(options) do
 		local optionBtn = CreateInstance("TextButton", {
 			Name = "Option",
 			Size = UDim2.new(1, 0, 0, 32),
@@ -647,19 +702,29 @@ function Window:AddDropdown(text, options, default, callback, tab)
 			Parent = dropdownList,
 		})
 		
+		optionBtn.MouseEnter:Connect(function()
+			Tween(optionBtn, "BackgroundColor3", COLORS.Tertiary, 0.1)
+		end)
+		
+		optionBtn.MouseLeave:Connect(function()
+			Tween(optionBtn, "BackgroundColor3", COLORS.Secondary, 0.1)
+		end)
+		
 		optionBtn.MouseButton1Click:Connect(function()
 			dropdown.Value = option
 			dropdownBtn.Text = option
-			HideDropdown()
-			callback(option)
+			CloseDropdown()
+			if callback then
+				callback(option)
+			end
 		end)
 	end
 	
 	dropdownBtn.MouseButton1Click:Connect(function()
 		if dropdown.Open then
-			HideDropdown()
+			CloseDropdown()
 		else
-			ShowDropdown()
+			OpenDropdown()
 		end
 	end)
 	
@@ -681,62 +746,18 @@ function Window:AddDivider(tab)
 	return divider
 end
 
+function Window:Toggle()
+	self.Visible = not self.Visible
+	self.Frame.Visible = self.Visible
+end
+
+function Window:Destroy()
+	self.ScreenGui:Destroy()
+end
+
 -- Library export
-local Library = {
+return {
 	Window = Window,
 	Colors = COLORS,
 	CreateInstance = CreateInstance,
 }
-
--- Add direct component creation functions that work on the last created window
-function Library.Button(text, callback, tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddButton(text, callback, tab)
-end
-
-function Library.Toggle(text, default, callback, tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddToggle(text, default, callback, tab)
-end
-
-function Library.Slider(text, min, max, default, callback, tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddSlider(text, min, max, default, callback, tab)
-end
-
-function Library.TextBox(placeholder, callback, tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddTextBox(placeholder, callback, tab)
-end
-
-function Library.Dropdown(text, options, default, callback, tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddDropdown(text, options, default, callback, tab)
-end
-
-function Library.Label(text, tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddLabel(text, tab)
-end
-
-function Library.Divider(tab, window)
-	local targetWindow = window or Library._currentWindow
-	if not targetWindow then error("No window created! Create a window first with Library.Window.new()") end
-	return targetWindow:AddDivider(tab)
-end
-
--- Wrap the Window.new to track the current window
-local OriginalWindowNew = Window.new
-function Window.new(title, size, position)
-	local window = OriginalWindowNew(title, size, position)
-	Library._currentWindow = window
-	return window
-end
-
-return Library
