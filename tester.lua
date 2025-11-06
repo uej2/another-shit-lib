@@ -281,7 +281,11 @@ function Library:CreateTab(name)
     table.insert(self.Tabs, Tab)
     
     if #self.Tabs == 1 then
-        TabButton.MouseButton1Click:Fire()
+        -- Activate first tab by default
+        TabIndicator.Size = UDim2.new(0, 3, 0, 20)
+        TabButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        TabLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        TabContent.Visible = true
     end
     
     return Tab
