@@ -338,17 +338,10 @@ function Window:AddToggle(text, default, callback, tab)
 		Parent = tab.Frame,
 	})
 	
-	CreateInstance("UIListLayout", {
-		Padding = UDim.new(0, 10),
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.SpaceBetween,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Parent = container,
-	})
-	
 	local label = CreateInstance("TextLabel", {
 		Name = "Label",
-		Size = UDim2.new(1, -50, 1, 0),
+		Size = UDim2.new(1, -60, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
 		BackgroundTransparency = 1,
 		Text = text,
 		TextColor3 = COLORS.Text,
@@ -367,6 +360,7 @@ function Window:AddToggle(text, default, callback, tab)
 	local switchContainer = CreateInstance("Frame", {
 		Name = "Switch",
 		Size = UDim2.new(0, 50, 0, 26),
+		Position = UDim2.new(1, -50, 0.5, -13),
 		BackgroundColor3 = toggle.Value and COLORS.Primary or COLORS.Secondary,
 		BorderSizePixel = 0,
 		Parent = container,
